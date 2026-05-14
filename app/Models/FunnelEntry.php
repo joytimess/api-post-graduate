@@ -2,11 +2,14 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class FunnelEntry extends Model
 {
+    use HasFactory;
+    
     protected $fillable = [
         'session_id', 'stage_id',
         'total_prospects', 'conversion_rate', 'dropoff_rate'

@@ -2,11 +2,14 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class AttritionAnalysis extends Model
 {
+    use HasFactory;
+    
     protected $fillable = [
         'session_id', 'stage_id',
         'risk_level', 'attrition_rate', 'dropoff_reason'
