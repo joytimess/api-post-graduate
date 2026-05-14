@@ -24,6 +24,7 @@ class DatabaseSeeder extends Seeder
             StudentSeeder::class,
             AnalysisSessionSeeder::class,
             EnrollmentSeeder::class,
+            TrafficPerformanceSeeder::class,
         ]);
     }
 }
