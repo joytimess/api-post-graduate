@@ -13,6 +13,7 @@ use Illuminate\Http\Request;
 class EnrollmentController extends Controller
 {
     // GET /api/enrollments/pending?session_id=6
+    // GET /api/enrollments/pending?session_id=6&limit=10
     public function pending(Request $request): JsonResponse
     {
         $request->validate([
@@ -32,25 +33,31 @@ class EnrollmentController extends Controller
             ])
             ->pluck('student_id');
 
-        // Ambil enrollment dengan status ongoing
-        $pending = Enrollment::with(['student.program', 'stage'])
+        // Stage yang relevan untuk pending review (3-8)
+        $pendingStages = FunnelStage::whereBetween('order', [3, 8])->pluck('id');
+
+        // Ambil yang failed/dropout di stage 3-8
+        $pending = Enrollment::with(['student.program', 'stage', 'dropoffReason'])
             ->whereIn('student_id', $studentIds)
-            ->where('status', 'ongoing')
-            ->latest('enrolled_date')
+            ->whereIn('stage_id', $pendingStages)
+            ->whereIn('status', ['failed', 'dropout'])
+            ->latest('completed_date')
             ->limit($limit)
             ->get()
             ->map(fn($e) => [
-                'enrollment_id' => $e->id,
-                'student_id'    => $e->student_id,
-                'name'          => $e->student->name ?? '-',
-                'email'         => $e->student->email ?? '-',
-                'program'       => $e->student->program->name ?? '-',
-                'level'         => $e->student->program->level ?? '-',
-                'stage'         => $e->stage->name ?? '-',
-                'stage_order'   => $e->stage->order ?? 0,
-                'enrolled_date' => $e->enrolled_date,
-                'waiting_since' => Carbon::parse($e->enrolled_date)->diffForHumans(),
-                'avatar'        => 'https://ui-avatars.com/api/?name=' . urlencode($e->student->name ?? 'Unknown') . '&background=5341CD&color=fff&bold=true&size=64',
+                'enrollment_id'  => $e->id,
+                'student_id'     => $e->student_id,
+                'name'           => $e->student->name ?? '-',
+                'email'          => $e->student->email ?? '-',
+                'program'        => $e->student->program->name ?? '-',
+                'level'          => $e->student->program->level ?? '-',
+                'stage'          => $e->stage->name ?? '-',
+                'stage_order'    => $e->stage->order ?? 0,
+                'status'         => $e->status,
+                'dropoff_reason' => $e->dropoffReason->label ?? '-',
+                'completed_date' => $e->completed_date,
+                'dropped_since'  => Carbon::parse($e->completed_date)->diffForHumans(),
+                'avatar'         => 'https://ui-avatars.com/api/?name=' . urlencode($e->student->name ?? 'Unknown') . '&background=EF4444&color=fff&bold=true&size=64',
             ]);
 
         return response()->json([

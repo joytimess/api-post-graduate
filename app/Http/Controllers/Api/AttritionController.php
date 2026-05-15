@@ -8,6 +8,8 @@ use App\Models\AttritionAnalysis;
 use App\Models\DropoffReason;
 use App\Models\Enrollment;
 use App\Models\FunnelStage;
+use App\Models\TrafficSource;
+use App\Models\Student;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -57,6 +59,24 @@ class AttritionController extends Controller
         // Rata-rata attrition rate keseluruhan
         $avgAttrition = round($stages->avg('attrition_rate'), 2);
 
+        $firstStage = FunnelStage::orderBy('order')->first();
+        
+        $studentIds = Enrollment::where('stage_id', $firstStage->id)
+            ->whereBetween('enrolled_date', [
+                $session->start_date,
+                $session->end_date,
+            ])
+            ->pluck('student_id');
+
+        $avgDaysToAttrition = Enrollment::whereIn('student_id', $studentIds)
+            ->whereIn('status', ['failed', 'dropout'])
+            ->whereNotNull('completed_date')
+            ->get()
+            ->avg(fn($e) =>
+                \Carbon\Carbon::parse($e->enrolled_date)
+                    ->diffInDays($e->completed_date)
+            );
+
         return response()->json([
             'session' => [
                 'id'           => $session->id,
@@ -64,6 +84,7 @@ class AttritionController extends Controller
                 'start_date'   => $session->start_date,
                 'end_date'     => $session->end_date,
             ],
+            'avg_days_to_attrition' => $avgDaysToAttrition ? round($avgDaysToAttrition) : 0,
             'attrition' => [
                 'stages'          => $stages->values(),
                 'highest_risk'    => $highestRisk,
@@ -260,6 +281,91 @@ class AttritionController extends Controller
             ],
             'by_reason'   => $byReason,
             'by_category' => $byCategory,
+        ]);
+    }
+
+    // GET /api/attrition/heatmap?session_id=6
+    public function heatmap(Request $request): JsonResponse
+    {
+        $request->validate([
+            'session_id' => 'required|exists:analysis_sessions,id',
+        ]);
+
+        $session    = AnalysisSession::findOrFail($request->session_id);
+        $firstStage = FunnelStage::orderBy('order')->first();
+
+        $studentIds = Enrollment::where('stage_id', $firstStage->id)
+            ->whereBetween('enrolled_date', [
+                $session->start_date,
+                $session->end_date,
+            ])
+            ->pluck('student_id');
+
+        $stages  = FunnelStage::orderBy('order')->get();
+        $sources = TrafficSource::orderBy('category')->get();
+
+        $heatmap = [];
+
+        foreach ($sources as $source) {
+            // Student IDs dari source ini
+            $sourceStudentIds = \App\Models\Student::whereIn('id', $studentIds)
+                ->where('traffic_source_id', $source->id)
+                ->pluck('id');
+
+            if ($sourceStudentIds->isEmpty()) continue;
+
+            $stageData = [];
+
+            foreach ($stages as $stage) {
+                $total = Enrollment::where('stage_id', $stage->id)
+                    ->whereIn('student_id', $sourceStudentIds)
+                    ->count();
+
+                $dropped = Enrollment::where('stage_id', $stage->id)
+                    ->whereIn('student_id', $sourceStudentIds)
+                    ->whereIn('status', ['failed', 'dropout'])
+                    ->count();
+
+                $attritionRate = $total > 0
+                    ? round(($dropped / $total) * 100, 2)
+                    : 0;
+
+                $stageData[] = [
+                    'stage_id'       => $stage->id,
+                    'stage'          => $stage->name,
+                    'stage_order'    => $stage->order,
+                    'total'          => $total,
+                    'dropped'        => $dropped,
+                    'attrition_rate' => $attritionRate,
+                    'risk_level'     => match(true) {
+                        $attritionRate >= 30 => 'critical',
+                        $attritionRate >= 20 => 'high',
+                        $attritionRate >= 10 => 'medium',
+                        default              => 'low',
+                    },
+                ];
+            }
+
+            $heatmap[] = [
+                'source_id'      => $source->id,
+                'source'         => $source->name,
+                'category'       => $source->category,
+                'total_students' => $sourceStudentIds->count(),
+                'stages'         => $stageData,
+            ];
+        }
+
+        return response()->json([
+            'session' => [
+                'id'           => $session->id,
+                'periode_name' => $session->periode_name,
+            ],
+            'stages'  => $stages->map(fn($s) => [
+                'id'    => $s->id,
+                'name'  => $s->name,
+                'order' => $s->order,
+            ]),
+            'heatmap' => $heatmap,
         ]);
     }
 }

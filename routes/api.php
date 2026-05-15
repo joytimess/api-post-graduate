@@ -47,6 +47,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/stage', [AttritionController::class, 'stageDetail']);
         Route::get('/comparison', [AttritionController::class, 'comparison']);
         Route::get('/reasons', [AttritionController::class, 'reasons']);
+        Route::get('/heatmap', [AttritionController::class, 'heatmap']);
     });
 
     // Retention

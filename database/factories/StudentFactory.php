@@ -4,6 +4,7 @@ namespace Database\Factories;
 
 use App\Models\Program;
 use App\Models\Student;
+use App\Models\TrafficSource;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
 /**
@@ -36,6 +37,7 @@ class StudentFactory extends Factory
             'name'         => $faker->name(),
             'email'        => 'student' . fake()->unique()->randomNumber(6, true) . '@university.ac.id',
             'program_id'   => Program::inRandomOrder()->first()->id,
+            'traffic_source_id' => TrafficSource::inRandomOrder()->first()->id,
             'status'       => $status,
             'enrolled_at'  => $enrolledAt,
             'graduated_at' => $status === 'graduated'
