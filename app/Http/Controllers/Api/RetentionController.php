@@ -51,13 +51,14 @@ class RetentionController extends Controller
         ]);
     }
 
-    // GET /api/retention/students?session_id=1&status=inactive
+    // GET /api/retention/students?session_id=1&status=inactive&filter=7d
     // List mahasiswa berdasarkan status retention
     public function students(Request $request): JsonResponse
     {
         $request->validate([
             'session_id' => 'required|exists:analysis_sessions,id',
             'status'     => 'nullable|in:active,inactive,graduated,dropout',
+            'filter'     => 'nullable|in:7d,1m,all',
         ]);
 
         $session = AnalysisSession::findOrFail($request->session_id);
@@ -71,24 +72,39 @@ class RetentionController extends Controller
             ])
             ->pluck('student_id');
 
-        $query = Student::with('program')
-            ->whereIn('id', $studentIds);
+        $query = Student::with('program')->whereIn('id', $studentIds);
 
-        // Filter by status kalau ada
-        if ($request->has('status')) {
+        // Filter by status
+        if ($request->has('status') && $request->status) {
             $query->where('status', $request->status);
         }
 
-        $students = $query->get()->map(fn($s) => [
-            'student_id'   => $s->id,
-            'nim'          => $s->nim,
-            'name'         => $s->name,
-            'program'      => $s->program->name ?? '-',
-            'level'        => $s->program->level ?? '-',
-            'status'       => $s->status,
-            'enrolled_at'  => $s->enrolled_at,
-            'graduated_at' => $s->graduated_at,
-        ]);
+        // Filter by tanggal
+        if ($request->filter === '7d') {
+            $query->where('enrolled_at', '>=', 
+                \Carbon\Carbon::parse($session->end_date)->subDays(7)
+            );
+        } elseif ($request->filter === '1m') {
+            $query->where('enrolled_at', '>=', 
+                \Carbon\Carbon::parse($session->end_date)->subMonth()
+            );
+        }
+
+        $students = $query->latest('enrolled_at')
+            ->limit(10)
+            ->get()
+            ->map(fn($s) => [
+                'student_id'   => $s->id,
+                'nim'          => $s->nim,
+                'name'         => $s->name,
+                'email'        => $s->email,
+                'program'      => $s->program->name ?? '-',
+                'level'        => $s->program->level ?? '-',
+                'status'       => $s->status,
+                'enrolled_at'  => $s->enrolled_at,
+                'graduated_at' => $s->graduated_at,
+                'avatar'       => 'https://ui-avatars.com/api/?name=' . urlencode($s->name) . '&background=5341CD&color=fff&bold=true&size=64',
+            ]);
 
         // Summary per status
         $summary = [
@@ -104,6 +120,7 @@ class RetentionController extends Controller
                 'id'           => $session->id,
                 'periode_name' => $session->periode_name,
             ],
+            'filter'   => $request->filter ?? 'all',
             'summary'  => $summary,
             'students' => $students,
         ]);

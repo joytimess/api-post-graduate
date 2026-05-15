@@ -25,16 +25,16 @@ class StudentFactory extends Factory
         
         $enrolledAt = $faker->dateTimeBetween('-4 years', '-6 months');
         $status = $faker->randomElement([
-            'active', 'active', 'active', 'active', // 4x lebih banyak active
+            'active', 'active', 'active', 'active',
             'inactive',
             'graduated',
             'dropout',
         ]);
 
         return [
-            'nim'          => $faker->unique()->numerify('########'),
+            'nim'          => $faker->unique()->numerify('##########'), // tambah digit
             'name'         => $faker->name(),
-            'email'        => $faker->unique()->safeEmail(),
+            'email'        => 'student' . fake()->unique()->randomNumber(6, true) . '@university.ac.id',
             'program_id'   => Program::inRandomOrder()->first()->id,
             'status'       => $status,
             'enrolled_at'  => $enrolledAt,

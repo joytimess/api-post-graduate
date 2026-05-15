@@ -2,6 +2,7 @@
 
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
+use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\DashboardController;
 use App\Http\Controllers\Api\FunnelController;
 use App\Http\Controllers\Api\AttritionController;
@@ -9,10 +10,7 @@ use App\Http\Controllers\Api\RetentionController;
 use App\Http\Controllers\Api\InsightController;
 use App\Http\Controllers\Api\TrafficController;
 use App\Http\Controllers\Api\ReportController;
-
-
-
-use App\Http\Controllers\Api\AuthController;
+use App\Http\Controllers\Api\EnrollmentController;
 
 // Public routes — tidak perlu token
 Route::prefix('auth')->group(function () {
@@ -33,6 +31,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::prefix('dashboard')->group(function () {
         Route::get('/', [DashboardController::class, 'index']);
         Route::get('/sessions', [DashboardController::class, 'sessions']);
+        Route::get('/trend', [DashboardController::class, 'trend']);
     });
 
     // Funnel
@@ -79,5 +78,10 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/export/pdf', [ReportController::class, 'exportPdf']);
         Route::get('/export/xlsx', [ReportController::class, 'exportXlsx']);
         Route::get('/export/csv', [ReportController::class, 'exportCsv']);
+    });
+
+    // Enrollments
+    Route::prefix('enrollments')->group(function () {
+        Route::get('/pending', [EnrollmentController::class, 'pending']);
     });
 });

@@ -12,6 +12,8 @@ use App\Models\RetentionAnalysis;
 use App\Models\Student;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use App\Models\TrafficPerformance;
+use App\Models\FunnelStage;
 
 class DashboardController extends Controller
 {
@@ -38,6 +40,7 @@ class DashboardController extends Controller
             'retention' => $this->getRetentionSummary($session),
             'insights'  => $this->getInsights($session),
             'overview'  => $this->getOverview($session),
+            'traffic'   => $this->getTrafficSummary($session),
         ]);
     }
 
@@ -160,27 +163,62 @@ class DashboardController extends Controller
 
     private function getOverview(AnalysisSession $session): array
     {
-        // Total mahasiswa yang masuk di periode ini
-        $totalMahasiswa = Student::whereBetween('enrolled_at', [
-            $session->start_date,
-            $session->end_date,
-        ])->count();
+        $firstStage = FunnelStage::orderBy('order')->first();
+        $lastStage  = FunnelStage::orderBy('order', 'desc')->first();
+
+        // Student IDs yang masuk di periode ini
+        $studentIds = Enrollment::where('stage_id', $firstStage->id)
+            ->whereBetween('enrolled_date', [
+                $session->start_date,
+                $session->end_date,
+            ])
+            ->pluck('student_id');
+
+        // Total Apps — yang sampai stage 2 (Pendaftaran Online)
+        $appsStage   = FunnelStage::orderBy('order')->skip(1)->first();
+        $totalApps   = Enrollment::where('stage_id', $appsStage->id)
+            ->whereIn('student_id', $studentIds)
+            ->count();
+
+        // Total Enrolled — passed di stage terakhir (Aktif Kuliah)
+        $totalEnrolled = Enrollment::where('stage_id', $lastStage->id)
+            ->where('status', 'passed')
+            ->whereIn('student_id', $studentIds)
+            ->count();
+
+        // Avg Conv. Time — rata-rata hari dari stage 1 ke stage 9
+        $firstEnrollments = Enrollment::where('stage_id', $firstStage->id)
+            ->whereIn('student_id', $studentIds)
+            ->get()
+            ->keyBy('student_id');
+
+        $lastEnrollments = Enrollment::where('stage_id', $lastStage->id)
+            ->where('status', 'passed')
+            ->whereIn('student_id', $studentIds)
+            ->get();
+
+        $avgDays = $lastEnrollments->avg(function ($e) use ($firstEnrollments) {
+            $first = $firstEnrollments->get($e->student_id);
+            if (!$first) return null;
+            return \Carbon\Carbon::parse($first->enrolled_date)
+                ->diffInDays($e->completed_date);
+        });
+
+        // Total dropout — distinct student yang punya status failed/dropout
+        $totalDropout = Enrollment::whereIn('student_id', $studentIds)
+            ->whereIn('status', ['failed', 'dropout'])
+            ->distinct('student_id')
+            ->count('student_id');
 
         return [
-            'total_mahasiswa' => $totalMahasiswa,
-            'total_programs'  => Student::whereBetween('enrolled_at', [
-                    $session->start_date,
-                    $session->end_date,
-                ])
+            'total_mahasiswa' => $studentIds->count(),
+            'total_apps'      => $totalApps,
+            'total_enrolled'  => $totalEnrolled,
+            'total_programs'  => Student::whereIn('id', $studentIds)
                 ->distinct('program_id')
                 ->count('program_id'),
-            'total_dropout'   => Enrollment::whereIn('status', ['failed', 'dropout'])
-                ->whereHas('student', fn($q) => $q->whereBetween('enrolled_at', [
-                    $session->start_date,
-                    $session->end_date,
-                ]))
-                ->distinct('student_id')
-                ->count('student_id'),
+            'total_dropout'   => $totalDropout,
+            'avg_conv_days'   => $avgDays ? round($avgDays) : 0,
         ];
     }
 
@@ -192,5 +230,96 @@ class DashboardController extends Controller
         if ($start === 0) return 0;
 
         return round(($finish / $start) * 100, 2);
+    }
+
+    private function getTrafficSummary(AnalysisSession $session): array
+    {
+        $performances = TrafficPerformance::where('session_id', $session->id)->get();
+
+        return [
+            'total_impressions' => $performances->sum('impressions'),
+            'total_clicks'      => $performances->sum('clicks'),
+            'total_leads'       => $performances->sum('leads'),
+            'top_source'        => $performances->sortByDesc('enrollments')
+                                    ->first()?->source?->name ?? '-',
+        ];
+    }
+
+    // GET /api/dashboard/trend?session_id=6&period=weekly
+    public function trend(Request $request): JsonResponse
+    {
+        $request->validate([
+            'session_id' => 'required|exists:analysis_sessions,id',
+            'period'     => 'required|in:weekly,monthly,yearly',
+        ]);
+
+        $session    = AnalysisSession::findOrFail($request->session_id);
+        $firstStage = FunnelStage::orderBy('order')->first();
+
+        // Ambil student_id yang masuk di periode sesi ini
+        $studentIds = Enrollment::where('stage_id', $firstStage->id)
+            ->whereBetween('enrolled_date', [
+                $session->start_date,
+                $session->end_date,
+            ])
+            ->pluck('student_id');
+
+        $enrollments = Enrollment::where('stage_id', $firstStage->id)
+            ->whereIn('student_id', $studentIds)
+            ->get();
+
+        $data = match($request->period) {
+            'weekly'  => $this->groupByWeek($enrollments),
+            'monthly' => $this->groupByMonth($enrollments),
+            'yearly'  => $this->groupByYear($enrollments),
+        };
+
+        return response()->json([
+            'session' => [
+                'id'           => $session->id,
+                'periode_name' => $session->periode_name,
+            ],
+            'period' => $request->period,
+            'trend'  => $data,
+        ]);
+    }
+
+    private function groupByWeek($enrollments): array
+    {
+        return $enrollments
+            ->groupBy(fn($e) => \Carbon\Carbon::parse($e->enrolled_date)->startOfWeek()->format('d M Y'))
+            ->map(fn($group, $week) => [
+                'label' => $week,
+                'total' => $group->count(),
+            ])
+            ->sortKeys()
+            ->values()
+            ->toArray();
+    }
+
+    private function groupByMonth($enrollments): array
+    {
+        return $enrollments
+            ->groupBy(fn($e) => \Carbon\Carbon::parse($e->enrolled_date)->format('M Y'))
+            ->map(fn($group, $month) => [
+                'label' => $month,
+                'total' => $group->count(),
+            ])
+            ->sortBy(fn($item, $key) => \Carbon\Carbon::parse($key)->timestamp)
+            ->values()
+            ->toArray();
+    }
+
+    private function groupByYear($enrollments): array
+    {
+        return $enrollments
+            ->groupBy(fn($e) => \Carbon\Carbon::parse($e->enrolled_date)->format('Y'))
+            ->map(fn($group, $year) => [
+                'label' => $year,
+                'total' => $group->count(),
+            ])
+            ->sortKeys()
+            ->values()
+            ->toArray();
     }
 }

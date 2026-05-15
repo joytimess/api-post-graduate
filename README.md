@@ -6,16 +6,16 @@ REST API untuk sistem analitik penerimaan mahasiswa pascasarjana (S2/S3). Sistem
 
 ## Tech Stack
 
-| Layer | Teknologi |
-|---|---|
-| Framework | Laravel 13.7 |
-| PHP | >= 8.3 |
-| Database | MySQL |
-| Authentication | Laravel Sanctum 4.0 (Bearer Token, TTL 8 jam) |
-| Export PDF | barryvdh/laravel-dompdf 3.1 |
-| Export Excel/CSV | maatwebsite/excel 3.1 |
-| Build Tool | Vite 8.0 + Tailwind CSS 4.0 |
-| Testing | PestPHP 4.7 |
+| Layer            | Teknologi                                     |
+| ---------------- | --------------------------------------------- |
+| Framework        | Laravel 13.7                                  |
+| PHP              | >= 8.3                                        |
+| Database         | MySQL                                         |
+| Authentication   | Laravel Sanctum 4.0 (Bearer Token, TTL 8 jam) |
+| Export PDF       | barryvdh/laravel-dompdf 3.1                   |
+| Export Excel/CSV | maatwebsite/excel 3.1                         |
+| Build Tool       | Vite 8.0 + Tailwind CSS 4.0                   |
+| Testing          | PestPHP 4.7                                   |
 
 ---
 
@@ -102,43 +102,52 @@ LOG_CHANNEL=stack
 ## Fitur Utama
 
 ### Autentikasi
+
 - Login dengan email & password, menghasilkan Bearer token (TTL 8 jam)
 - Refresh token dan logout
 - Role pengguna: `super_admin`, `admin`, `viewer`
 
 ### Dashboard
+
 - Ringkasan komprehensif: funnel, attrisi, retensi, insight, dan overview per sesi analisis
 
 ### Analisis Funnel
+
 - Metrik konversi & dropoff per tahap dari 9 tahap penerimaan
 - Detail mahasiswa per tahap
 - Perbandingan tren antar sesi
 
 ### Analisis Attrisi
+
 - Tingkat attrisi per tahap dengan level risiko (`low`, `medium`, `high`, `critical`)
 - Detail mahasiswa dropout beserta alasan
 - Agregasi alasan dropout per kategori (akademik, finansial, personal, administratif)
 - Perbandingan tren attrisi antar sesi
 
 ### Analisis Retensi
+
 - Tingkat retensi mahasiswa aktif vs. tidak aktif
 - Breakdown per program studi
 - Tren retensi antar sesi dengan deteksi perubahan
 
 ### Analisis Traffic
+
 - Performa per sumber traffic: impressi, klik, leads, enrollment, conversion rate
 - Pengelompokan per kategori (social media, search, event, referral, direct)
 - Tren performa per sumber lintas sesi
 
 ### Insights
+
 - Insights otomatis per tipe: `funnel`, `attrition`, `retention`, `traffic`
 - Rekomendasi berdasarkan kondisi masing-masing sesi
 
 ### Export Laporan
+
 - Export PDF, XLSX, dan CSV per sesi analisis
 - Riwayat laporan yang pernah dieksport
 
 ### Artisan Command
+
 ```bash
 php artisan analytics:calculate   # Hitung ulang semua data analitik
 ```
@@ -168,22 +177,22 @@ analysis_sessions ──── reports
 
 ### Tabel Utama
 
-| Tabel | Deskripsi |
-|---|---|
-| `users` | Pengguna sistem (super_admin / admin / viewer) |
-| `programs` | Program studi S2 & S3 per fakultas |
-| `students` | Data mahasiswa |
-| `funnel_stages` | 9 tahap pipeline penerimaan |
-| `enrollments` | Perjalanan mahasiswa per tahap (junction table) |
-| `dropoff_reasons` | 17 alasan dropout dalam 5 kategori |
-| `analysis_sessions` | Periode analisis (semester) |
-| `funnel_entries` | Snapshot metrik funnel per sesi per tahap |
-| `attrition_analyses` | Metrik attrisi per sesi per tahap |
-| `retention_analyses` | Metrik retensi per sesi |
-| `traffic_sources` | 18 sumber rekrutmen mahasiswa |
-| `traffic_performances` | Metrik performa traffic per sesi per sumber |
-| `insights` | Insight dan rekomendasi otomatis |
-| `reports` | Riwayat file laporan yang diexport |
+| Tabel                  | Deskripsi                                       |
+| ---------------------- | ----------------------------------------------- |
+| `users`                | Pengguna sistem (super_admin / admin / viewer)  |
+| `programs`             | Program studi S2 & S3 per fakultas              |
+| `students`             | Data mahasiswa                                  |
+| `funnel_stages`        | 9 tahap pipeline penerimaan                     |
+| `enrollments`          | Perjalanan mahasiswa per tahap (junction table) |
+| `dropoff_reasons`      | 17 alasan dropout dalam 5 kategori              |
+| `analysis_sessions`    | Periode analisis (semester)                     |
+| `funnel_entries`       | Snapshot metrik funnel per sesi per tahap       |
+| `attrition_analyses`   | Metrik attrisi per sesi per tahap               |
+| `retention_analyses`   | Metrik retensi per sesi                         |
+| `traffic_sources`      | 18 sumber rekrutmen mahasiswa                   |
+| `traffic_performances` | Metrik performa traffic per sesi per sumber     |
+| `insights`             | Insight dan rekomendasi otomatis                |
+| `reports`              | Riwayat file laporan yang diexport              |
 
 ---
 
@@ -242,47 +251,48 @@ api-post-graduate/
 ## API Endpoints
 
 Semua endpoint selain login membutuhkan header:
+
 ```
 Authorization: Bearer <token>
 ```
 
-| Method | Endpoint | Deskripsi |
-|---|---|---|
-| POST | `/api/auth/login` | Login |
-| POST | `/api/auth/logout` | Logout |
-| POST | `/api/auth/refresh` | Refresh token |
-| GET | `/api/auth/me` | Profil user aktif |
-| GET | `/api/dashboard` | Ringkasan dashboard |
-| GET | `/api/dashboard/sessions` | Daftar sesi analisis |
-| GET | `/api/funnel` | Metrik funnel per sesi |
-| GET | `/api/funnel/stage` | Detail per tahap |
-| GET | `/api/funnel/comparison` | Tren antar sesi |
-| GET | `/api/attrition` | Metrik attrisi |
-| GET | `/api/attrition/stage` | Detail dropout per tahap |
-| GET | `/api/attrition/comparison` | Tren attrisi |
-| GET | `/api/attrition/reasons` | Alasan dropout |
-| GET | `/api/retention` | Metrik retensi |
-| GET | `/api/retention/students` | Daftar mahasiswa per status |
-| GET | `/api/retention/comparison` | Tren retensi |
-| GET | `/api/retention/by-program` | Retensi per program |
-| GET | `/api/traffic` | Performa traffic |
-| GET | `/api/traffic/by-category` | Traffic per kategori |
-| GET | `/api/traffic/source` | Tren per sumber |
-| GET | `/api/traffic/sources` | Daftar sumber traffic |
-| GET | `/api/insights` | Insights per sesi |
-| GET | `/api/insights/type` | Insights per tipe |
-| GET | `/api/insights/all` | Semua insights (paginated) |
-| GET | `/api/reports` | Riwayat laporan |
-| GET | `/api/reports/export/pdf` | Export PDF |
-| GET | `/api/reports/export/xlsx` | Export Excel |
-| GET | `/api/reports/export/csv` | Export CSV |
+| Method | Endpoint                    | Deskripsi                   |
+| ------ | --------------------------- | --------------------------- |
+| POST   | `/api/auth/login`           | Login                       |
+| POST   | `/api/auth/logout`          | Logout                      |
+| POST   | `/api/auth/refresh`         | Refresh token               |
+| GET    | `/api/auth/me`              | Profil user aktif           |
+| GET    | `/api/dashboard`            | Ringkasan dashboard         |
+| GET    | `/api/dashboard/sessions`   | Daftar sesi analisis        |
+| GET    | `/api/funnel`               | Metrik funnel per sesi      |
+| GET    | `/api/funnel/stage`         | Detail per tahap            |
+| GET    | `/api/funnel/comparison`    | Tren antar sesi             |
+| GET    | `/api/attrition`            | Metrik attrisi              |
+| GET    | `/api/attrition/stage`      | Detail dropout per tahap    |
+| GET    | `/api/attrition/comparison` | Tren attrisi                |
+| GET    | `/api/attrition/reasons`    | Alasan dropout              |
+| GET    | `/api/retention`            | Metrik retensi              |
+| GET    | `/api/retention/students`   | Daftar mahasiswa per status |
+| GET    | `/api/retention/comparison` | Tren retensi                |
+| GET    | `/api/retention/by-program` | Retensi per program         |
+| GET    | `/api/traffic`              | Performa traffic            |
+| GET    | `/api/traffic/by-category`  | Traffic per kategori        |
+| GET    | `/api/traffic/source`       | Tren per sumber             |
+| GET    | `/api/traffic/sources`      | Daftar sumber traffic       |
+| GET    | `/api/insights`             | Insights per sesi           |
+| GET    | `/api/insights/type`        | Insights per tipe           |
+| GET    | `/api/insights/all`         | Semua insights (paginated)  |
+| GET    | `/api/reports`              | Riwayat laporan             |
+| GET    | `/api/reports/export/pdf`   | Export PDF                  |
+| GET    | `/api/reports/export/xlsx`  | Export Excel                |
+| GET    | `/api/reports/export/csv`   | Export CSV                  |
 
 ---
 
 ## Default Credentials (Seeder)
 
-| Role | Email | Password |
-|---|---|---|
+| Role        | Email                | Password |
+| ----------- | -------------------- | -------- |
 | Super Admin | superadmin@admin.com | password |
-| Admin | admin@admin.com | password |
-| Viewer | hendri@example.com | password |
+| Admin       | admin@admin.com      | password |
+| Viewer      | hendri@example.com   | password |
