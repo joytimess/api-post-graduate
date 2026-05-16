@@ -30,7 +30,45 @@ class RetentionController extends Controller
             ], 404);
         }
 
+        // Ambil student_ids periode ini
+        $firstStage = FunnelStage::orderBy('order')->first();
+        $studentIds = Enrollment::where('stage_id', $firstStage->id)
+            ->whereBetween('enrolled_date', [
+                $session->start_date,
+                $session->end_date,
+            ])
+            ->pluck('student_id');
+
         $totalStudents = $retention->active_students + $retention->inactive_students;
+
+        // First-Year Retention
+        // Mahasiswa yang enrolled dalam 1 tahun terakhir dari end_date sesi
+        $firstYearStudents = Student::whereIn('id', $studentIds)
+            ->where('enrolled_at', '>=', \Carbon\Carbon::parse($session->end_date)->subYear())
+            ->count();
+
+        $firstYearActive = Student::whereIn('id', $studentIds)
+            ->where('enrolled_at', '>=', \Carbon\Carbon::parse($session->end_date)->subYear())
+            ->where('status', 'active')
+            ->count();
+
+        $firstYearRetention = $firstYearStudents > 0
+            ? round(($firstYearActive / $firstYearStudents) * 100, 2)
+            : 0;
+
+        // Dropout Rate
+        $totalDropout = Student::whereIn('id', $studentIds)
+            ->where('status', 'dropout')
+            ->count();
+
+        $dropoutRate = $totalStudents > 0
+            ? round(($totalDropout / $totalStudents) * 100, 2)
+            : 0;
+
+        // Graduated
+        $totalGraduated = Student::whereIn('id', $studentIds)
+            ->where('status', 'graduated')
+            ->count();
 
         return response()->json([
             'session' => [
@@ -40,13 +78,18 @@ class RetentionController extends Controller
                 'end_date'     => $session->end_date,
             ],
             'retention' => [
-                'retention_rate'    => (float) $retention->retention_rate,
-                'active_students'   => $retention->active_students,
-                'inactive_students' => $retention->inactive_students,
-                'total_students'    => $totalStudents,
-                'status'            => $retention->retention_rate >= 70 ? 'good' : 'needs_attention',
-                'target'            => 70.00,
-                'gap_to_target'     => round(max(70 - (float) $retention->retention_rate, 0), 2),
+                'retention_rate'      => (float) $retention->retention_rate,
+                'active_students'     => $retention->active_students,
+                'inactive_students'   => $retention->inactive_students,
+                'total_students'      => $totalStudents,
+                'status'              => $retention->retention_rate >= 70 ? 'good' : 'needs_attention',
+                'target'              => 70.00,
+                'gap_to_target'       => round(max(70 - (float) $retention->retention_rate, 0), 2),
+                'first_year_retention' => $firstYearRetention,
+                'first_year_students'  => $firstYearStudents,
+                'dropout_rate'        => $dropoutRate,
+                'total_dropout'       => $totalDropout,
+                'total_graduated'     => $totalGraduated,
             ],
         ]);
     }
@@ -222,6 +265,73 @@ class RetentionController extends Controller
                 'periode_name' => $session->periode_name,
             ],
             'by_program' => $byProgram,
+        ]);
+    }
+
+        public function trend(): JsonResponse
+    {
+        $data = RetentionAnalysis::with('session')
+            ->orderBy('session_id')
+            ->get()
+            ->map(fn($r) => [
+                'session_id'      => $r->session_id,
+                'periode_name'    => $r->session->periode_name ?? '-',
+                'start_date'      => $r->session->start_date,
+                'retention_rate'  => (float) $r->retention_rate,
+                'active_students' => $r->active_students,
+                'total_students'  => $r->active_students + $r->inactive_students,
+                'status'          => $r->retention_rate >= 70 ? 'good' : 'needs_attention',
+            ]);
+
+        return response()->json([
+            'target' => 70,
+            'trend'  => $data,
+        ]);
+    }
+
+    public function byFaculty(Request $request): JsonResponse
+    {
+        $request->validate([
+            'session_id' => 'required|exists:analysis_sessions,id',
+        ]);
+
+        $session = AnalysisSession::findOrFail($request->session_id);
+
+        $firstStage = FunnelStage::orderBy('order')->first();
+        $studentIds = Enrollment::where('stage_id', $firstStage->id)
+            ->whereBetween('enrolled_date', [
+                $session->start_date,
+                $session->end_date,
+            ])
+            ->pluck('student_id');
+
+        $students = Student::with('program')
+            ->whereIn('id', $studentIds)
+            ->get();
+
+        $byFaculty = $students
+            ->groupBy(fn($s) => $s->program->faculty ?? 'Unknown')
+            ->map(fn($group, $faculty) => [
+                'faculty'        => $faculty,
+                'total'          => $group->count(),
+                'active'         => $group->where('status', 'active')->count(),
+                'inactive'       => $group->where('status', 'inactive')->count(),
+                'graduated'      => $group->where('status', 'graduated')->count(),
+                'dropout'        => $group->where('status', 'dropout')->count(),
+                'retention_rate' => round(
+                    ($group->where('status', 'active')->count() / max($group->count(), 1)) * 100,
+                    2
+                ),
+            ])
+            ->sortByDesc('retention_rate')
+            ->values();
+
+        return response()->json([
+            'session' => [
+                'id'           => $session->id,
+                'periode_name' => $session->periode_name,
+            ],
+            'by_faculty' => $byFaculty,
         ]);
     }
 }

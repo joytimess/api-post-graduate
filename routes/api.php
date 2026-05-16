@@ -56,6 +56,8 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/students', [RetentionController::class, 'students']);
         Route::get('/comparison', [RetentionController::class, 'comparison']);
         Route::get('/by-program', [RetentionController::class, 'byProgram']);
+        Route::get('/by-faculty', [RetentionController::class, 'byFaculty']);
+        Route::get('/trend', [RetentionController::class, 'trend']);
     });
 
     // Insights
