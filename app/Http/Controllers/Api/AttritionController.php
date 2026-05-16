@@ -351,6 +351,11 @@ class AttritionController extends Controller
                 'source'         => $source->name,
                 'category'       => $source->category,
                 'total_students' => $sourceStudentIds->count(),
+                'avg_attrition'  => round(
+                    collect($stageData)
+                        ->where('total', '>', 0)
+                        ->avg('attrition_rate') ?? 0, 2
+                ),
                 'stages'         => $stageData,
             ];
         }

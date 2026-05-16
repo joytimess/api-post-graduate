@@ -78,6 +78,26 @@ class TrafficController extends Controller
             ],
         ];
 
+        $organicSources = $data->filter(fn($p) => is_null($p['cost_per_lead']));
+        $paidSources    = $data->filter(fn($p) => !is_null($p['cost_per_lead']));
+
+        $organicSummary = [
+            'total_sources'     => $organicSources->count(),
+            'total_impressions' => $organicSources->sum('impressions'),
+            'total_leads'       => $organicSources->sum('leads'),
+            'total_enrollments' => $organicSources->sum('enrollments'),
+            'avg_conversion'    => round($organicSources->avg('conversion_rate'), 2),
+        ];
+
+        $paidSummary = [
+            'total_sources'     => $paidSources->count(),
+            'total_impressions' => $paidSources->sum('impressions'),
+            'total_leads'       => $paidSources->sum('leads'),
+            'total_enrollments' => $paidSources->sum('enrollments'),
+            'avg_conversion'    => round($paidSources->avg('conversion_rate'), 2),
+            'total_cost'        => $paidSources->sum('cost_per_enrollment'),
+        ];
+
         return response()->json([
             'session' => [
                 'id'           => $session->id,
@@ -86,6 +106,8 @@ class TrafficController extends Controller
                 'end_date'     => $session->end_date,
             ],
             'summary'         => $summary,
+            'organic_summary'  => $organicSummary,
+            'paid_summary'     => $paidSummary,
             'paid_vs_organic' => $paidVsOrganic,
             'performances'    => $data->values(),
         ]);
