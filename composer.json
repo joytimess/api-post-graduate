@@ -88,7 +88,14 @@
             "php-http/discovery": true
         },
         "platform": {
-            "ext-gd": "1.0"
+            "ext-gd": "1.0",
+            "ext-zip": "1.0",
+            "ext-xml": "1.0",
+            "ext-xmlreader": "1.0",
+            "ext-xmlwriter": "1.0",
+            "ext-mbstring": "1.0",
+            "ext-curl": "1.0",
+            "ext-fileinfo": "1.0"
         }
     },
     "minimum-stability": "stable",
