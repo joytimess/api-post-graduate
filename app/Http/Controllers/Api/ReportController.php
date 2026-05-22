@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Exports\AnalyticsExport;
+use App\Exports\CsvExport;
 use App\Http\Controllers\Controller;
 use App\Models\AnalysisSession;
 use App\Models\AttritionAnalysis;
@@ -112,7 +113,7 @@ class ReportController extends Controller
             'exported_at' => now(),
         ]);
 
-        return Excel::download(new AnalyticsExport($session), $filename, \Maatwebsite\Excel\Excel::CSV);
+        return Excel::download(new CsvExport($session), $filename, \Maatwebsite\Excel\Excel::CSV);
     }
 
     // =========================================================

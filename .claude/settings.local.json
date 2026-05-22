@@ -1,7 +1,10 @@
 {
   "permissions": {
     "allow": [
-      "Bash(rtk ls *)"
+      "Bash(rtk ls *)",
+      "Bash(php artisan *)",
+      "Bash(php -l app/Exports/CsvExport.php)",
+      "Bash(php -l app/Http/Controllers/Api/ReportController.php)"
     ]
   }
 }
